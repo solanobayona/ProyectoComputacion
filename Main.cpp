@@ -1,183 +1,223 @@
 #include <iostream>
-#include <cmath>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-// -------------------------------------------------------------
-// SHADERS
-// -------------------------------------------------------------
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
-// Vertex Shader: Aplica transformación matricial y define tamaño de puntos/cuadrados
-const char* miVertexShader = "#version 330 core\n"
-"layout (location = 0) in vec3 posicion;\n"
-"uniform mat4 matTransformacion;\n"
-"uniform float tamanoPunto;\n"
-"void main()\n"
-"{\n"
-"   gl_Position = matTransformacion * vec4(posicion, 1.0);\n"
-"   gl_PointSize = tamanoPunto;\n"
+#include <fstream>
+#include <sstream>
+#include <string>
+
+// Tamaño de la ventana
+const unsigned int SCR_WIDTH = 800;
+const unsigned int SCR_HEIGHT = 800;
+
+// Shaders básicos
+const char* vertexShaderSource =
+"#version 330 core\n"
+"layout (location = 0) in vec3 aPos;\n"
+"layout (location = 1) in vec4 aColor;\n"
+"out vec4 ourColor;\n"
+"uniform mat4 uMVP;\n"
+"void main() {\n"
+"    gl_Position = uMVP * vec4(aPos, 1.0);\n"
+"    ourColor = aColor;\n"
 "}\0";
 
-// Fragment Shader: Asigna el color enviado vía uniform
-const char* miFragmentShader = "#version 330 core\n"
-"out vec4 colorSalida;\n"
-"uniform vec4 colorUnif;\n"
-"void main()\n"
-"{\n"
-"   colorSalida = colorUnif;\n"
+const char* fragmentShaderSource =
+"#version 330 core\n"
+"out vec4 FragColor;\n"
+"in vec4 ourColor;\n"
+"void main() {\n"
+"    FragColor = ourColor;\n"
 "}\0";
 
-// -------------------------------------------------------------
-// FUNCIONES AUXILIARES
-// -------------------------------------------------------------
-
-// Función para compilar y enlazar el programa de shaders en un solo paso
-GLuint crearProgramaShaders(const char* vSource, const char* fSource)
-{
-    GLuint vShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vShader, 1, &vSource, NULL);
-    glCompileShader(vShader);
-
-    GLuint fShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fShader, 1, &fSource, NULL);
-    glCompileShader(fShader);
-
-    GLuint programa = glCreateProgram();
-    glAttachShader(programa, vShader);
-    glAttachShader(programa, fShader);
-    glLinkProgram(programa);
-
-    // Limpieza de shaders individuales ya enlazados
-    glDeleteShader(vShader);
-    glDeleteShader(fShader);
-
-    return programa;
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
 }
 
-// -------------------------------------------------------------
-// MAIN
-// -------------------------------------------------------------
+int main() {
+    // Imprimir nombre del proyecto en consola
+    std::cout << "==========================================" << std::endl;
+    std::cout << " Proyecto: Triangulos_ NICOLAS SOLANO_6000809" << std::endl;
+    std::cout << "==========================================" << std::endl;
 
-int main()
-{
-    // Configuración inicial de GLFW
+    // 1. Inicialización de GLFW
     if (!glfwInit()) {
-        std::cout << "Error al inicializar GLFW" << std::endl;
+        std::cerr << "Error al inicializar GLFW" << std::endl;
         return -1;
     }
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_DEPTH_BITS, 24);
 
-    GLFWwindow* ventana = glfwCreateWindow(800, 800, "OpenGL NICOLAS SOLANO", NULL, NULL);
-    if (ventana == NULL) {
-        std::cout << "Fallo al crear la ventana de GLFW" << std::endl;
+    // Crear la ventana con el nombre del proyecto y estudiante
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Triangulos_ NICOLAS SOLANO_6000809", nullptr, nullptr);
+    if (window == nullptr) {
+        std::cerr << "Error al crear la ventana GLFW" << std::endl;
         glfwTerminate();
         return -1;
     }
-    glfwMakeContextCurrent(ventana);
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    // Cargar direcciones de funciones de OpenGL mediante GLAD
+    // 2. Cargar GLAD
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cout << "Error al inicializar GLAD" << std::endl;
+        std::cerr << "Error al inicializar GLAD" << std::endl;
         return -1;
     }
 
-    glViewport(0, 0, 800, 800);
+    // Activar Depth Test y Blending para transparencia Alpha
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Permite controlar el tamaño de los puntos desde el Vertex Shader (gl_PointSize)
-    glEnable(GL_PROGRAM_POINT_SIZE);
+    // 3. Compilar Shaders
+    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    glCompileShader(vertexShader);
 
-    // Compilación del Shader Program usando nuestra función auxiliar
-    GLuint shaderID = crearProgramaShaders(miVertexShader, miFragmentShader);
+    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    glCompileShader(fragmentShader);
 
-    // Geometría: Triángulos concéntricos
-    GLfloat posVertices[] = {
-        -0.5f,     -0.5f * float(sqrt(3)) / 3,     0.0f, // V0
-         0.5f,     -0.5f * float(sqrt(3)) / 3,     0.0f, // V1
-         0.0f,      0.5f * float(sqrt(3)) * 2 / 3, 0.0f, // V2
-        -0.5f / 2,  0.5f * float(sqrt(3)) / 6,     0.0f, // V3
-         0.5f / 2,  0.5f * float(sqrt(3)) / 6,     0.0f, // V4
-         0.0f,     -0.5f * float(sqrt(3)) / 3,     0.0f  // V5
+    unsigned int shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    // 4. VÉRTICES DE LOS 3 TRIÁNGULOS
+    // Alineados de la base en Y = -0.3, organizados uno detrás de otro en Z y con tamaños crecientes
+    float verticesTriangulos[] = {
+        // --- TRIÁNGULO 1: VERDE (Al frente, Z = 0.4, Pequeño) ---
+        // Posición (X, Y, Z)      Color (R, G, B, Alpha)
+        -0.2f, -0.3f,  0.4f,     0.0f, 1.0f, 0.0f, 0.6f,
+         0.2f, -0.3f,  0.4f,     0.0f, 1.0f, 0.0f, 0.6f,
+         0.0f,  0.1f,  0.4f,     0.0f, 1.0f, 0.0f, 0.6f,
+
+         // --- TRIÁNGULO 2: ROJO (En el centro, Z = 0.0, Mediano) ---
+         -0.4f, -0.3f,  0.0f,     1.0f, 0.0f, 0.0f, 0.6f,
+          0.4f, -0.3f,  0.0f,     1.0f, 0.0f, 0.0f, 0.6f,
+          0.0f,  0.3f,  0.0f,     1.0f, 0.0f, 0.0f, 0.6f,
+
+          // --- TRIÁNGULO 3: AZUL (Atrás, Z = -0.4, Grande) ---
+          -0.6f, -0.3f, -0.4f,     0.0f, 0.0f, 1.0f, 0.6f,
+           0.6f, -0.3f, -0.4f,     0.0f, 0.0f, 1.0f, 0.6f,
+           0.0f,  0.5f, -0.4f,     0.0f, 0.0f, 1.0f, 0.6f
     };
 
-    GLuint indicesMalla[] = {
-        0, 3, 5, // Triángulo 1
-        3, 2, 4, // Triángulo 2
-        5, 4, 1  // Triángulo 3
+    // 5. VÉRTICES DE LOS EJES CARTESIANOS DE GUÍA (Versión compacta/más pequeña)
+    // Ubicados en Z = -0.6 detrás del triángulo azul
+    float verticesEjes[] = {
+        // Eje X (Rojo)
+        -0.5f, -0.3f, -0.6f,     0.8f, 0.0f, 0.0f, 1.0f,
+         0.5f, -0.3f, -0.6f,     0.8f, 0.0f, 0.0f, 1.0f,
+
+         // Eje Y (Verde)
+          0.0f, -0.3f, -0.6f,     0.0f, 0.8f, 0.0f, 1.0f,
+          0.0f,  0.6f, -0.6f,     0.0f, 0.8f, 0.0f, 1.0f,
+
+          // Eje Z (Azul)
+           0.0f, -0.3f, -0.8f,     0.5f, 0.5f, 0.8f, 1.0f,
+           0.0f, -0.3f, -0.4f,     0.5f, 0.5f, 0.8f, 1.0f
     };
 
-    // Configuración de Buffers (VAO, VBO, EBO)
-    GLuint vao, vbo, ebo;
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
+    // Configurar VAO/VBO para los Triángulos
+    unsigned int vaoTriangulos, vboTriangulos;
+    glGenVertexArrays(1, &vaoTriangulos);
+    glGenBuffers(1, &vboTriangulos);
 
-    glBindVertexArray(vao);
+    glBindVertexArray(vaoTriangulos);
+    glBindBuffer(GL_ARRAY_BUFFER, vboTriangulos);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(verticesTriangulos), verticesTriangulos, GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(posVertices), posVertices, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indicesMalla), indicesMalla, GL_STATIC_DRAW);
-
-    // Atributo 0: Posición de vértices
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
-    // Desvincular buffers
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    // Configurar VAO/VBO para los Ejes Guía
+    unsigned int vaoEjes, vboEjes;
+    glGenVertexArrays(1, &vaoEjes);
+    glGenBuffers(1, &vboEjes);
 
-    // Referencias a las variables Uniforms del shader
-    GLint locMatrizTransform = glGetUniformLocation(shaderID, "matTransformacion");
-    GLint locColor = glGetUniformLocation(shaderID, "colorUnif");
-    GLint locTamanoPunto = glGetUniformLocation(shaderID, "tamanoPunto");
+    glBindVertexArray(vaoEjes);
+    glBindBuffer(GL_ARRAY_BUFFER, vboEjes);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(verticesEjes), verticesEjes, GL_STATIC_DRAW);
 
-    // Matriz Identidad 4x4
-    GLfloat matrizIdentidad[16] = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    };
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
-    // Bucle principal de renderizado
-    while (!glfwWindowShouldClose(ventana))
-    {
-        // Fondo verde oliva
-        glClearColor(0.22f, 0.32f, 0.13f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+    int mvpLoc = glGetUniformLocation(shaderProgram, "uMVP");
+    float zMovement = 0.0f;
 
-        glUseProgram(shaderID);
+    // 6. RENDER LOOP
+    while (!glfwWindowShouldClose(window)) {
 
-        // Envío de la matriz de transformación
-        glUniformMatrix4fv(locMatrizTransform, 1, GL_FALSE, matrizIdentidad);
+        // Teclas para desplazar la escena en Z
+        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+            zMovement += 0.002f;
+        }
+        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+            zMovement -= 0.002f;
+        }
 
-        glBindVertexArray(vao);
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Pasada 1: Renderizado del cuerpo de los triángulos (Tono Naranja)
-        glUniform4f(locColor, 0.8f, 0.3f, 0.02f, 1.0f);
-        glDrawElements(GL_TRIANGLES, 9, GL_UNSIGNED_INT, 0);
+        glUseProgram(shaderProgram);
 
-        // Pasada 2: Renderizado de cuadrados sobre cada vértice (Azul Celeste)
-        glUniform4f(locColor, 0.0f, 0.75f, 1.0f, 1.0f);
-        glUniform1f(locTamanoPunto, 16.0f); // Ajuste del ancho del cuadrado en px
-        glDrawElements(GL_POINTS, 9, GL_UNSIGNED_INT, 0);
+        // Matriz de Proyección
+        int width = 0, height = 0;
+        glfwGetFramebufferSize(window, &width, &height);
+        float aspect = width > 0 ? (float)width / (float)height : 1.0f;
+        glm::mat4 projection = glm::perspective(glm::radians(60.0f), aspect, 0.1f, 100.0f);
 
-        glfwSwapBuffers(ventana);
+        // Matriz de Vista
+        glm::mat4 view = glm::lookAt(
+            glm::vec3(1.5f, 0.8f, 3.0f),
+            glm::vec3(0.0f, 0.0f, 0.0f),
+            glm::vec3(0.0f, 1.0f, 0.0f)
+        );
+
+        // Matriz de Modelo (Rotación suave + Desplazamiento Z)
+        float t = (float)glfwGetTime();
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(0.0f, 0.0f, zMovement));
+        model = glm::rotate(model, t * 0.5f, glm::vec3(0.0f, 1.0f, 0.0f));
+
+        glm::mat4 mvp = projection * view * model;
+        glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+
+        // Dibujar Ejes Guía (Líneas compactas traseras)
+        glLineWidth(2.0f);
+        glBindVertexArray(vaoEjes);
+        glDrawArrays(GL_LINES, 0, 6);
+
+        // Dibujar Triángulos
+        glBindVertexArray(vaoTriangulos);
+        glDrawArrays(GL_TRIANGLES, 0, 9);
+
+        glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    // Liberación de recursos
-    glDeleteVertexArrays(1, &vao);
-    glDeleteBuffers(1, &vbo);
-    glDeleteBuffers(1, &ebo);
-    glDeleteProgram(shaderID);
+    // Liberar recursos
+    glDeleteVertexArrays(1, &vaoTriangulos);
+    glDeleteBuffers(1, &vboTriangulos);
+    glDeleteVertexArrays(1, &vaoEjes);
+    glDeleteBuffers(1, &vboEjes);
+    glDeleteProgram(shaderProgram);
 
-    glfwDestroyWindow(ventana);
     glfwTerminate();
     return 0;
 }
