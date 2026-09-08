@@ -40,11 +40,9 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 
 int main() {
     // Imprimir nombre del proyecto en consola
-    std::cout << "==========================================" << std::endl;
     std::cout << " Proyecto: Triangulos_ NICOLAS SOLANO_6000809" << std::endl;
-    std::cout << "==========================================" << std::endl;
 
-    // 1. Inicialización de GLFW
+    // Inicialización de GLFW
     if (!glfwInit()) {
         std::cerr << "Error al inicializar GLFW" << std::endl;
         return -1;
@@ -55,7 +53,6 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_DEPTH_BITS, 24);
 
-    // Crear la ventana con el nombre del proyecto y estudiante
     GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Triangulos_ NICOLAS SOLANO_6000809", nullptr, nullptr);
     if (window == nullptr) {
         std::cerr << "Error al crear la ventana GLFW" << std::endl;
@@ -65,7 +62,7 @@ int main() {
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    // 2. Cargar GLAD
+    // GLAD
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Error al inicializar GLAD" << std::endl;
         return -1;
@@ -76,7 +73,7 @@ int main() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // 3. Compilar Shaders
+    // Shaders
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
     glCompileShader(vertexShader);
@@ -93,8 +90,7 @@ int main() {
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
-    // 4. VÉRTICES DE LOS 3 TRIÁNGULOS
-    // Alineados de la base en Y = -0.3, organizados uno detrás de otro en Z y con tamaños crecientes
+    // VÉRTICES DE LOS 3 TRIÁNGULOS Alineados de la base en Y = -0.3, organizados uno detrás de otro en Z y con tamaños diferentes
     float verticesTriangulos[] = {
         // --- TRIÁNGULO 1: VERDE (Al frente, Z = 0.4, Pequeño) ---
         // Posición (X, Y, Z)      Color (R, G, B, Alpha)
@@ -113,8 +109,7 @@ int main() {
            0.0f,  0.5f, -0.4f,     0.0f, 0.0f, 1.0f, 0.6f
     };
 
-    // 5. VÉRTICES DE LOS EJES CARTESIANOS DE GUÍA (Versión compacta/más pequeña)
-    // Ubicados en Z = -0.6 detrás del triángulo azul
+    // VÉRTICES DE LOS EJES GUIA en Z = -0.6 detrás del triángulo azul
     float verticesEjes[] = {
         // Eje X (Rojo)
         -0.5f, -0.3f, -0.6f,     0.8f, 0.0f, 0.0f, 1.0f,
@@ -129,7 +124,7 @@ int main() {
            0.0f, -0.3f, -0.4f,     0.5f, 0.5f, 0.8f, 1.0f
     };
 
-    // Configurar VAO/VBO para los Triángulos
+    // VAO/VBO para los Triángulos
     unsigned int vaoTriangulos, vboTriangulos;
     glGenVertexArrays(1, &vaoTriangulos);
     glGenBuffers(1, &vboTriangulos);
@@ -143,7 +138,7 @@ int main() {
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    // Configurar VAO/VBO para los Ejes Guía
+    // VAO/VBO para los Ejes Guía
     unsigned int vaoEjes, vboEjes;
     glGenVertexArrays(1, &vaoEjes);
     glGenBuffers(1, &vboEjes);
@@ -158,18 +153,9 @@ int main() {
     glEnableVertexAttribArray(1);
 
     int mvpLoc = glGetUniformLocation(shaderProgram, "uMVP");
-    float zMovement = 0.0f;
 
-    // 6. RENDER LOOP
+    // RENDER LOOP
     while (!glfwWindowShouldClose(window)) {
-
-        // Teclas para desplazar la escena en Z
-        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-            zMovement += 0.002f;
-        }
-        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-            zMovement -= 0.002f;
-        }
 
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -189,16 +175,15 @@ int main() {
             glm::vec3(0.0f, 1.0f, 0.0f)
         );
 
-        // Matriz de Modelo (Rotación suave + Desplazamiento Z)
+        // Matriz de Modelo (Rotación automática en Y)
         float t = (float)glfwGetTime();
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, 0.0f, zMovement));
         model = glm::rotate(model, t * 0.5f, glm::vec3(0.0f, 1.0f, 0.0f));
 
         glm::mat4 mvp = projection * view * model;
         glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mvp));
 
-        // Dibujar Ejes Guía (Líneas compactas traseras)
+        // Dibujar Ejes Guía
         glLineWidth(2.0f);
         glBindVertexArray(vaoEjes);
         glDrawArrays(GL_LINES, 0, 6);
